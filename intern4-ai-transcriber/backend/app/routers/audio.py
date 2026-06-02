@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from app.services.transcriber import transcribe_audio_file
 from app.services.session_store import save_chunk, assemble_session, cleanup_session
 from app.services.pipeline_optimizer import transcribe_with_cache, record_upload_speed
+from app.services.translator import translate_text
 from app.utils.text_formatter import format_transcript
 
 router = APIRouter()
@@ -110,3 +111,30 @@ async def finalize_session(body: FinalizeRequest):
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
     finally:
         cleanup_session(session_id)
+
+
+# ─── Translation Endpoint ─────────────────────────────────────────────────────
+
+class TranslateRequest(BaseModel):
+    text: str
+    source_lang: str = "te"   # default: Telugu
+    target_lang: str = "hi"   # default: Hindi
+
+
+@router.post("/translate")
+def translate_transcript(body: TranslateRequest):
+    """
+    Translates a transcript from one language to another.
+    Default: Telugu → Hindi (primary KissanShakti use case).
+    """
+    if not body.text or not body.text.strip():
+        raise HTTPException(status_code=400, detail="Text cannot be empty.")
+
+    translated = translate_text(body.text, body.source_lang, body.target_lang)
+
+    return {
+        "source_lang": body.source_lang,
+        "target_lang": body.target_lang,
+        "original": body.text,
+        "translated": translated,
+    }
